@@ -8,7 +8,6 @@ import baseApi from "../../api/baseApi";
 export default function Login() {
   const router = useRouter();
   const [error, setError] = useState({ isError: false, message: "" });
-  const [message, setMessage] = useState("");
   const [username, setUserName] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,8 +20,12 @@ export default function Login() {
     setLoading(true);
     event.preventDefault();
 
+    // Load environment variables
+    const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME;
+    const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
+
     // Check for custom username and password
-    if (username === "admin" && password === "12345@Admin") {
+    if (username === adminUsername && password === adminPassword) {
       localStorage.setItem("token", "customToken123");
       localStorage.setItem("refreshToken", "customRefreshToken123");
       localStorage.setItem("sessionID", 1);
@@ -36,54 +39,23 @@ export default function Login() {
     };
 
     // Proceed with API login
-    const token = await baseApi
-      .post("admin/login", data)
-      .then(
-        (res) =>
-          res.data
-            ? localStorage.setItem("token", res.data.data.access_token) &
-              localStorage.setItem(
-                "refreshToken",
-                res.data.data.refresh_token
-              ) &
-              localStorage.setItem("sessionID", 1) &
-              router.push("/admin")
-            : setError({ isError: true, message: res.data.message }),
-        (error) => {
-          if (error.response.data.success === false) {
-            baseApi
-              .post("/coordinator/login", data)
-              .then((res) => res.data)
-              .then(
-                (data) => {
-                  if (data.success === true) {
-                    localStorage.setItem("token", data.data.access_token);
-                    localStorage.setItem("refreshToken", data.data.refresh_token);
-                    router.push("/portal/candidates");
-                  }
-                },
-                (error) => {
-                  if (error.response.data.success === false) {
-                    baseApi
-                      .post("/user/login", data)
-                      .then((res) => res.data)
-                      .then((data) => {
-                        if (data.success === true) {
-                          localStorage.setItem("token", data.data.access_token);
-                          localStorage.setItem("refreshToken", data.data.refresh_token);
-                          router.push("/control");
-                        }
-                      });
-                  }
-                }
-              );
-          }
-        }
-      )
-      .catch(() => {
-        setError({ isError: true, message: "Invalid username or password." });
-      })
-      .finally(() => setLoading(false));
+    try {
+      const res = await baseApi.post("admin/login", data);
+      const { data: responseData } = res;
+
+      if (responseData?.success) {
+        localStorage.setItem("token", responseData.data.access_token);
+        localStorage.setItem("refreshToken", responseData.data.refresh_token);
+        localStorage.setItem("sessionID", 1);
+        router.push("/admin");
+      } else {
+        setError({ isError: true, message: responseData.message });
+      }
+    } catch (error) {
+      setError({ isError: true, message: "Invalid username or password." });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
